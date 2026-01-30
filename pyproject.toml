@@ -1,0 +1,28 @@
+[project]
+name = "gmail-liam-mcp"
+version = "0.1.0"
+description = "LIAM Gmail MCP Server - Access Gmail through LIAM's CASA-compliant OAuth"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "LIAM Team", email = "support@doitliam.com"}
+]
+keywords = ["mcp", "gmail", "email", "ai-assistant", "dedalus"]
+
+dependencies = [
+    "dedalus>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
