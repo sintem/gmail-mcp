@@ -14,7 +14,7 @@ Deployment: Dedalus Labs Marketplace
 import os
 from typing import Optional
 
-from dedalus_mcp import MCPServer, Connection, OAuthConfig
+from dedalus_mcp import MCPServer, Connection, SecretKeys, tool
 from dedalus_mcp.server import TransportSecuritySettings
 
 
@@ -40,13 +40,8 @@ DEDALUS_AS_URL = os.getenv("DEDALUS_AS_URL", "https://as.dedaluslabs.ai")
 # account_type=mcp tells LIAM to create a lightweight MCP account (no Gmail watch)
 liam = Connection(
     name="LIAM_ACCESS_TOKEN",
-    oauth=OAuthConfig(
-        client_id=os.getenv("LIAM_MCP_CLIENT_ID", ""),
-        client_secret=os.getenv("LIAM_MCP_CLIENT_SECRET", ""),
-        authorize_url=f"{LIAM_API_BASE}/authorize?account_type=mcp",
-        token_url=f"{LIAM_API_BASE}/token",
-        scopes=["gmail.readonly"],
-    ),
+    secrets=SecretKeys(api_key="DEDALUS_API_KEY"),
+    base_url=LIAM_API_BASE,
 )
 
 
@@ -65,21 +60,8 @@ def create_server() -> MCPServer:
 # Gmail Tools
 # =============================================================================
 
-# Tool collection for server.collect()
-gmail_tools = []
 
-
-def tool(tags=None, readOnlyHint=True):
-    """Decorator to register tools and add metadata."""
-    def decorator(func):
-        func._tool_tags = tags or []
-        func._tool_readonly = readOnlyHint
-        gmail_tools.append(func)
-        return func
-    return decorator
-
-
-@tool(tags=["gmail"], readOnlyHint=True)
+@tool()
 async def gmail_list_messages(
     ctx,
     max_results: int = 10,
@@ -112,7 +94,7 @@ async def gmail_list_messages(
     return response.text
 
 
-@tool(tags=["gmail"], readOnlyHint=True)
+@tool()
 async def gmail_get_message(ctx, message_id: str) -> str:
     """
     Get the full content of a specific email by its message ID.
@@ -132,7 +114,7 @@ async def gmail_get_message(ctx, message_id: str) -> str:
     return response.text
 
 
-@tool(tags=["gmail"], readOnlyHint=True)
+@tool()
 async def gmail_search_messages(
     ctx,
     query: str,
@@ -169,7 +151,7 @@ async def gmail_search_messages(
     return response.text
 
 
-@tool(tags=["gmail"], readOnlyHint=True)
+@tool()
 async def gmail_list_threads(
     ctx,
     max_results: int = 10,
@@ -204,7 +186,7 @@ async def gmail_list_threads(
     return response.text
 
 
-@tool(tags=["gmail"], readOnlyHint=True)
+@tool()
 async def gmail_get_thread(ctx, thread_id: str) -> str:
     """
     Get a full email thread with all messages in the conversation.
@@ -224,7 +206,7 @@ async def gmail_get_thread(ctx, thread_id: str) -> str:
     return response.text
 
 
-@tool(tags=["gmail"], readOnlyHint=True)
+@tool()
 async def gmail_list_labels(ctx) -> str:
     """
     List all Gmail labels in the user's account.
@@ -242,7 +224,7 @@ async def gmail_list_labels(ctx) -> str:
     return response.text
 
 
-@tool(tags=["gmail"], readOnlyHint=True)
+@tool()
 async def gmail_get_profile(ctx) -> str:
     """
     Get the connected Gmail account profile information.
@@ -265,7 +247,15 @@ async def gmail_get_profile(ctx) -> str:
 async def main() -> None:
     """Start MCP server."""
     server = create_server()
-    server.collect(*gmail_tools)
+    server.collect(
+        gmail_list_messages,
+        gmail_get_message,
+        gmail_search_messages,
+        gmail_list_threads,
+        gmail_get_thread,
+        gmail_list_labels,
+        gmail_get_profile,
+    )
     await server.serve(port=8080)
 
 
