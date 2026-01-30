@@ -1,5 +1,5 @@
 [project]
-name = "gmail-liam-mcp"
+name = "gmail-mcp"
 version = "0.1.0"
 description = "LIAM Gmail MCP Server - Access Gmail through LIAM's CASA-compliant OAuth"
 readme = "README.md"

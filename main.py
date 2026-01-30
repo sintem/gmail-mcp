@@ -37,7 +37,7 @@ LIAM_SCOPES = os.getenv("LIAM_SCOPES", "gmail.readonly").split(",")
 # =============================================================================
 
 liam = Connection(
-    name="gmail-liam",  # Must match deployment slug on Dedalus
+    name="gmail-mcp",  # Must match deployment slug on Dedalus
     oauth=OAuthConfig(
         client_id=os.getenv("LIAM_MCP_CLIENT_ID"),
         client_secret=os.getenv("LIAM_MCP_CLIENT_SECRET"),

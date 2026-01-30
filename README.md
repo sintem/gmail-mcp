@@ -1,4 +1,4 @@
-# Gmail LIAM MCP Server
+# Gmail MCP Server (Powered by LIAM)
 
 Access Gmail through LIAM's CASA-compliant Google OAuth infrastructure via the Model Context Protocol (MCP).
 
@@ -139,7 +139,7 @@ python main.py
 ## Support
 
 - Documentation: [docs.doitliam.com](https://docs.doitliam.com)
-- Issues: [GitHub Issues](https://github.com/your-org/gmail-liam-mcp/issues)
+- Issues: [GitHub Issues](https://github.com/sintem/gmail-mcp/issues)
 - Email: support@doitliam.com
 
 ## License
