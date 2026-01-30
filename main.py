@@ -14,8 +14,12 @@ Deployment: Dedalus Labs Marketplace
 import os
 from typing import Optional
 
+from dotenv import load_dotenv
 from dedalus_mcp import MCPServer, Connection, SecretKeys, tool
 from dedalus_mcp.server import TransportSecuritySettings
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 # =============================================================================
@@ -244,8 +248,8 @@ async def gmail_get_profile(ctx) -> str:
 # Server Entry Point
 # =============================================================================
 
-async def main() -> None:
-    """Start MCP server."""
+def create_app():
+    """Create and configure the MCP server for deployment."""
     server = create_server()
     server.collect(
         gmail_list_messages,
@@ -256,6 +260,16 @@ async def main() -> None:
         gmail_list_labels,
         gmail_get_profile,
     )
+    return server
+
+
+# Export for Dedalus Labs marketplace deployment
+server = create_app()
+app = server.asgi_app()
+
+
+async def main() -> None:
+    """Start MCP server locally."""
     await server.serve(port=8080)
 
 
