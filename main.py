@@ -1,113 +1,91 @@
+# Copyright (c) 2026 LIAM Team
+# SPDX-License-Identifier: MIT
+
 """
 LIAM Gmail MCP Server
 
-This MCP server provides Gmail access through LIAM's CASA-compliant OAuth infrastructure.
-Users authenticate via LIAM, and all Gmail API calls are routed through LIAM's backend
-to preserve security and compliance.
+Provides Gmail access through LIAM's CASA-compliant OAuth infrastructure.
+Users authenticate via LIAM, and all Gmail API calls are routed through
+LIAM's backend to preserve security and compliance.
 
 Deployment: Dedalus Labs Marketplace
 """
 
 import os
-from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional
 
-# Dedalus SDK imports (install via: pip install dedalus)
-from dedalus import MCPServer, Connection, OAuthConfig, tool
+from dedalus_mcp import MCPServer, Connection, OAuthConfig
+from dedalus_mcp.server import TransportSecuritySettings
 
 
 # =============================================================================
 # Configuration
 # =============================================================================
 
-# LIAM API base URL (production)
-LIAM_API_BASE = os.getenv("LIAM_API_BASE", "https://us-central1-liam-ai-assistant.cloudfunctions.net")
+# LIAM API base URL
+# Dev: liam1-dev, Prod: liam-ai-assistant
+LIAM_PROJECT_ID = os.getenv("LIAM_PROJECT_ID", "liam1-dev")
+LIAM_API_BASE = os.getenv("LIAM_API_BASE", f"https://us-central1-{LIAM_PROJECT_ID}.cloudfunctions.net")
 
-# LIAM OAuth endpoints
-# Note: account_type=mcp tells LIAM to create a lightweight MCP account (no Gmail watch/processing)
-LIAM_AUTHORIZE_URL = f"{LIAM_API_BASE}/authorize?account_type=mcp"
-LIAM_TOKEN_URL = f"{LIAM_API_BASE}/token"
-
-# OAuth scopes (LIAM-specific, maps to Gmail permissions)
-LIAM_SCOPES = os.getenv("LIAM_SCOPES", "gmail.readonly").split(",")
+# Dedalus Authorization Server
+DEDALUS_AS_URL = os.getenv("DEDALUS_AS_URL", "https://as.dedaluslabs.ai")
 
 
 # =============================================================================
 # Connection Setup
 # =============================================================================
 
+# Connection to LIAM backend
+# LIAM acts as the OAuth provider - users authenticate with Google through LIAM
+# account_type=mcp tells LIAM to create a lightweight MCP account (no Gmail watch)
 liam = Connection(
-    name="gmail-mcp",  # Must match deployment slug on Dedalus
+    name="LIAM_ACCESS_TOKEN",
     oauth=OAuthConfig(
-        client_id=os.getenv("LIAM_MCP_CLIENT_ID"),
-        client_secret=os.getenv("LIAM_MCP_CLIENT_SECRET"),
-        authorize_url=LIAM_AUTHORIZE_URL,
-        token_url=LIAM_TOKEN_URL,
-        scopes=LIAM_SCOPES,
+        client_id=os.getenv("LIAM_MCP_CLIENT_ID", ""),
+        client_secret=os.getenv("LIAM_MCP_CLIENT_SECRET", ""),
+        authorize_url=f"{LIAM_API_BASE}/authorize?account_type=mcp",
+        token_url=f"{LIAM_API_BASE}/token",
+        scopes=["gmail.readonly"],
     ),
-    auth_header_format="Bearer {access_token}",
-)
-
-server = MCPServer(
-    connections=[liam],
-    allow_dns_rebinding=False,
-    stateless_http=True,
 )
 
 
-# =============================================================================
-# Response Types
-# =============================================================================
-
-@dataclass
-class EmailSummary:
-    """Summary of an email message"""
-    id: str
-    thread_id: str
-    snippet: str
-    from_address: Optional[str]
-    to_address: Optional[str]
-    subject: Optional[str]
-    date: Optional[str]
-    labels: List[str]
-
-
-@dataclass
-class EmailDetail:
-    """Full email content"""
-    id: str
-    thread_id: str
-    from_address: Optional[str]
-    to_address: Optional[str]
-    cc: Optional[str]
-    subject: Optional[str]
-    date: Optional[str]
-    body_plain: str
-    body_html: str
-    labels: List[str]
-    snippet: str
-    has_attachments: bool
-
-
-@dataclass
-class GmailProfile:
-    """Gmail account profile"""
-    email_address: str
-    messages_total: int
-    threads_total: int
+def create_server() -> MCPServer:
+    """Create MCP server with current env config."""
+    return MCPServer(
+        name="liam-gmail",
+        connections=[liam],
+        http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+        streamable_http_stateless=True,
+        authorization_server=DEDALUS_AS_URL,
+    )
 
 
 # =============================================================================
 # Gmail Tools
 # =============================================================================
 
+# Tool collection for server.collect()
+gmail_tools = []
+
+
+def tool(tags=None, readOnlyHint=True):
+    """Decorator to register tools and add metadata."""
+    def decorator(func):
+        func._tool_tags = tags or []
+        func._tool_readonly = readOnlyHint
+        gmail_tools.append(func)
+        return func
+    return decorator
+
+
 @tool(tags=["gmail"], readOnlyHint=True)
-async def list_emails(
+async def gmail_list_messages(
     ctx,
     max_results: int = 10,
     query: Optional[str] = None,
     page_token: Optional[str] = None,
-) -> dict:
+) -> str:
     """
     List recent emails from the user's Gmail inbox.
 
@@ -117,12 +95,9 @@ async def list_emails(
         page_token: Pagination token for fetching the next page of results
 
     Returns:
-        Dictionary containing:
-        - messages: List of email summaries
-        - next_page_token: Token for fetching next page (if available)
-        - result_size_estimate: Estimated total matching messages
+        JSON with messages list, next_page_token, and result_size_estimate
     """
-    params = {"max": max_results}
+    params = {"max": str(max_results)}
     if query:
         params["q"] = query
     if page_token:
@@ -134,12 +109,11 @@ async def list_emails(
         f"{LIAM_API_BASE}/mcpGmailListMessages",
         params=params,
     )
-
-    return response.json()
+    return response.text
 
 
 @tool(tags=["gmail"], readOnlyHint=True)
-async def get_email(ctx, message_id: str) -> dict:
+async def gmail_get_message(ctx, message_id: str) -> str:
     """
     Get the full content of a specific email by its message ID.
 
@@ -152,19 +126,19 @@ async def get_email(ctx, message_id: str) -> dict:
     response = await ctx.dispatch(
         liam,
         "GET",
-        f"{LIAM_API_BASE}/mcpGmailGetMessage/{message_id}",
+        f"{LIAM_API_BASE}/mcpGmailGetMessage",
+        params={"id": message_id},
     )
-
-    return response.json()
+    return response.text
 
 
 @tool(tags=["gmail"], readOnlyHint=True)
-async def search_emails(
+async def gmail_search_messages(
     ctx,
     query: str,
     max_results: int = 20,
     page_token: Optional[str] = None,
-) -> dict:
+) -> str:
     """
     Search emails using Gmail's powerful query syntax.
 
@@ -180,9 +154,9 @@ async def search_emails(
         page_token: Pagination token for next page
 
     Returns:
-        Dictionary containing matching messages and pagination info
+        JSON with matching messages and pagination info
     """
-    params = {"q": query, "max": max_results}
+    params = {"q": query, "max": str(max_results)}
     if page_token:
         params["pageToken"] = page_token
 
@@ -192,17 +166,16 @@ async def search_emails(
         f"{LIAM_API_BASE}/mcpGmailSearch",
         params=params,
     )
-
-    return response.json()
+    return response.text
 
 
 @tool(tags=["gmail"], readOnlyHint=True)
-async def list_threads(
+async def gmail_list_threads(
     ctx,
     max_results: int = 10,
     query: Optional[str] = None,
     page_token: Optional[str] = None,
-) -> dict:
+) -> str:
     """
     List email conversation threads from the user's inbox.
 
@@ -214,9 +187,9 @@ async def list_threads(
         page_token: Pagination token for next page
 
     Returns:
-        Dictionary containing thread IDs, snippets, and pagination info
+        JSON with thread IDs, snippets, and pagination info
     """
-    params = {"max": max_results}
+    params = {"max": str(max_results)}
     if query:
         params["q"] = query
     if page_token:
@@ -228,68 +201,49 @@ async def list_threads(
         f"{LIAM_API_BASE}/mcpGmailListThreads",
         params=params,
     )
-
-    return response.json()
+    return response.text
 
 
 @tool(tags=["gmail"], readOnlyHint=True)
-async def get_thread(ctx, thread_id: str, include_html: bool = False) -> dict:
+async def gmail_get_thread(ctx, thread_id: str) -> str:
     """
     Get a full email thread with all messages in the conversation.
 
     Args:
         thread_id: The Gmail thread ID to retrieve
-        include_html: Whether to include HTML body content (default: False)
 
     Returns:
-        Full thread with:
-        - threadId, subject, participants
-        - All messages in chronological order
-        - Message count and date range
+        Full thread with all messages in chronological order
     """
-    params = {}
-    if include_html:
-        params["includeHtml"] = "true"
-
     response = await ctx.dispatch(
         liam,
         "GET",
-        f"{LIAM_API_BASE}/mcpGmailGetThread/{thread_id}",
-        params=params,
+        f"{LIAM_API_BASE}/mcpGmailGetThread",
+        params={"id": thread_id},
     )
-
-    return response.json()
+    return response.text
 
 
 @tool(tags=["gmail"], readOnlyHint=True)
-async def list_labels(ctx, include_stats: bool = False) -> dict:
+async def gmail_list_labels(ctx) -> str:
     """
     List all Gmail labels in the user's account.
 
     Labels include both system labels (INBOX, SENT, SPAM, etc.) and user-created labels.
 
-    Args:
-        include_stats: Whether to include message/thread counts for each label
-
     Returns:
-        Dictionary containing list of labels with their IDs, names, and types
+        JSON with list of labels including IDs, names, and types
     """
-    params = {}
-    if include_stats:
-        params["includeStats"] = "true"
-
     response = await ctx.dispatch(
         liam,
         "GET",
         f"{LIAM_API_BASE}/mcpGmailListLabels",
-        params=params,
     )
-
-    return response.json()
+    return response.text
 
 
 @tool(tags=["gmail"], readOnlyHint=True)
-async def get_profile(ctx) -> dict:
+async def gmail_get_profile(ctx) -> str:
     """
     Get the connected Gmail account profile information.
 
@@ -301,13 +255,20 @@ async def get_profile(ctx) -> dict:
         "GET",
         f"{LIAM_API_BASE}/mcpGmailGetProfile",
     )
-
-    return response.json()
+    return response.text
 
 
 # =============================================================================
 # Server Entry Point
 # =============================================================================
 
+async def main() -> None:
+    """Start MCP server."""
+    server = create_server()
+    server.collect(*gmail_tools)
+    await server.serve(port=8080)
+
+
 if __name__ == "__main__":
-    server.run()
+    import asyncio
+    asyncio.run(main())

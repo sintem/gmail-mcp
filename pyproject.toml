@@ -1,5 +1,5 @@
 [project]
-name = "gmail-mcp"
+name = "liam-gmail-mcp"
 version = "0.1.0"
 description = "LIAM Gmail MCP Server - Access Gmail through LIAM's CASA-compliant OAuth"
 readme = "README.md"
@@ -8,21 +8,34 @@ license = {text = "MIT"}
 authors = [
     {name = "LIAM Team", email = "support@doitliam.com"}
 ]
-keywords = ["mcp", "gmail", "email", "ai-assistant", "dedalus"]
+keywords = ["mcp", "gmail", "email", "ai-assistant", "liam", "dedalus"]
 
 dependencies = [
-    "dedalus>=0.1.0",
+    "dedalus-mcp>=0.6.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
+    "ruff>=0.1.0",
 ]
 
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.setuptools.packages.find]
-where = ["."]
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
