@@ -72,8 +72,6 @@ uv run python main.py
 ```
 
 ## Security
-
-- All Gmail API calls go through LIAM's CASA-compliant backend
 - Google credentials are encrypted at rest (AES-256-GCM)
 - OAuth tokens never touch the MCP server directly
 - Your credentials are never exposed to third parties
