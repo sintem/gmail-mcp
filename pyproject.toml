@@ -1,7 +1,7 @@
 [project]
 name = "liam-gmail-mcp"
 version = "0.1.0"
-description = "LIAM Gmail MCP Server - Access Gmail through LIAM's CASA-compliant OAuth"
+description = "LIAM Gmail MCP Server - Access Gmail via Google OAuth on Dedalus"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -13,7 +13,6 @@ keywords = ["mcp", "gmail", "email", "ai-assistant", "liam", "dedalus"]
 dependencies = [
     "dedalus-mcp>=0.6.0",
     "pydantic>=2.0.0",
-    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]

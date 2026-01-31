@@ -4,60 +4,107 @@
 """
 LIAM Gmail MCP Server
 
-Provides Gmail access through LIAM's CASA-compliant OAuth infrastructure.
-Users authenticate via LIAM, and all Gmail API calls are routed through
-LIAM's backend to preserve security and compliance.
+Provides Gmail access via Google OAuth through Dedalus Labs marketplace.
+Uses the same architecture as annyzhou/gmail-mcp for seamless OAuth flow.
 
 Deployment: Dedalus Labs Marketplace
 """
 
-import os
+import base64
+import json
 from typing import Optional
 
-from dotenv import load_dotenv
-from dedalus_mcp import MCPServer, Connection, SecretKeys, tool
+from dedalus_mcp import (
+    MCPServer,
+    tool,
+    Context,
+    Connection,
+    SecretKeys,
+    HttpMethod,
+    HttpRequest,
+)
 from dedalus_mcp.server import TransportSecuritySettings
-
-# Load environment variables from .env file
-load_dotenv()
-
-
-# =============================================================================
-# Configuration
-# =============================================================================
-
-# LIAM API base URL
-# Dev: liam1-dev, Prod: liam-ai-assistant
-LIAM_PROJECT_ID = os.getenv("LIAM_PROJECT_ID", "liam1-dev")
-LIAM_API_BASE = os.getenv("LIAM_API_BASE", f"https://us-central1-{LIAM_PROJECT_ID}.cloudfunctions.net")
-
-# Dedalus Authorization Server
-DEDALUS_AS_URL = os.getenv("DEDALUS_AS_URL", "https://as.dedaluslabs.ai")
 
 
 # =============================================================================
 # Connection Setup
 # =============================================================================
 
-# Connection to LIAM backend
-# LIAM acts as the OAuth provider - users authenticate with Google through LIAM
-# account_type=mcp tells LIAM to create a lightweight MCP account (no Gmail watch)
-liam = Connection(
-    name="LIAM_ACCESS_TOKEN",
-    secrets=SecretKeys(api_key="DEDALUS_API_KEY"),
-    base_url=LIAM_API_BASE,
+# Connection to Gmail API
+# OAuth token is managed by Dedalus - users authenticate through Google OAuth
+gmail = Connection(
+    name="gmail-mcp",
+    secrets=SecretKeys(token="GMAIL_ACCESS_TOKEN"),
+    base_url="https://gmail.googleapis.com",
 )
 
 
-def create_server() -> MCPServer:
-    """Create MCP server with current env config."""
-    return MCPServer(
-        name="liam-gmail",
-        connections=[liam],
-        http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
-        streamable_http_stateless=True,
-        authorization_server=DEDALUS_AS_URL,
-    )
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+def decode_base64(data: str) -> str:
+    """Decode base64url encoded data."""
+    # Add padding if needed
+    padding = 4 - len(data) % 4
+    if padding != 4:
+        data += "=" * padding
+    return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
+
+
+def extract_email_body(payload: dict) -> dict:
+    """Extract plain text and HTML body from email payload."""
+    result = {"plain": "", "html": ""}
+
+    def process_part(part: dict) -> None:
+        mime_type = part.get("mimeType", "")
+        body = part.get("body", {})
+        data = body.get("data", "")
+
+        if data:
+            decoded = decode_base64(data)
+            if mime_type == "text/plain":
+                result["plain"] = decoded
+            elif mime_type == "text/html":
+                result["html"] = decoded
+
+        # Recursively process nested parts
+        for subpart in part.get("parts", []):
+            process_part(subpart)
+
+    process_part(payload)
+    return result
+
+
+def extract_headers(headers: list) -> dict:
+    """Extract common headers into a dict."""
+    header_dict = {}
+    for h in headers:
+        name = h.get("name", "").lower()
+        if name in ["from", "to", "subject", "date", "cc", "bcc"]:
+            header_dict[name] = h.get("value", "")
+    return header_dict
+
+
+def format_message(msg: dict) -> dict:
+    """Format a Gmail message for output."""
+    payload = msg.get("payload", {})
+    headers = extract_headers(payload.get("headers", []))
+    body = extract_email_body(payload)
+
+    return {
+        "id": msg.get("id"),
+        "threadId": msg.get("threadId"),
+        "labelIds": msg.get("labelIds", []),
+        "snippet": msg.get("snippet", ""),
+        "from": headers.get("from", ""),
+        "to": headers.get("to", ""),
+        "cc": headers.get("cc", ""),
+        "subject": headers.get("subject", ""),
+        "date": headers.get("date", ""),
+        "body_plain": body["plain"],
+        "body_html": body["html"],
+    }
 
 
 # =============================================================================
@@ -67,7 +114,7 @@ def create_server() -> MCPServer:
 
 @tool()
 async def gmail_list_messages(
-    ctx,
+    ctx: Context,
     max_results: int = 10,
     query: Optional[str] = None,
     page_token: Optional[str] = None,
@@ -83,23 +130,27 @@ async def gmail_list_messages(
     Returns:
         JSON with messages list, next_page_token, and result_size_estimate
     """
-    params = {"max": str(max_results)}
+    params = [f"maxResults={max_results}"]
     if query:
-        params["q"] = query
+        params.append(f"q={query}")
     if page_token:
-        params["pageToken"] = page_token
+        params.append(f"pageToken={page_token}")
+
+    path = f"/gmail/v1/users/me/messages?{'&'.join(params)}"
 
     response = await ctx.dispatch(
-        liam,
-        "GET",
-        f"{LIAM_API_BASE}/mcpGmailListMessages",
-        params=params,
+        gmail,
+        HttpRequest(method=HttpMethod.GET, path=path)
     )
-    return response.text
+
+    if not response.success:
+        return json.dumps({"error": response.error.message})
+
+    return json.dumps(response.response.body) if response.response.body else "{}"
 
 
 @tool()
-async def gmail_get_message(ctx, message_id: str) -> str:
+async def gmail_get_message(ctx: Context, message_id: str) -> str:
     """
     Get the full content of a specific email by its message ID.
 
@@ -109,18 +160,25 @@ async def gmail_get_message(ctx, message_id: str) -> str:
     Returns:
         Full email content including headers, body (plain and HTML), and metadata
     """
+    path = f"/gmail/v1/users/me/messages/{message_id}?format=full"
+
     response = await ctx.dispatch(
-        liam,
-        "GET",
-        f"{LIAM_API_BASE}/mcpGmailGetMessage",
-        params={"id": message_id},
+        gmail,
+        HttpRequest(method=HttpMethod.GET, path=path)
     )
-    return response.text
+
+    if not response.success:
+        return json.dumps({"error": response.error.message})
+
+    if response.response.body:
+        formatted = format_message(response.response.body)
+        return json.dumps(formatted)
+    return "{}"
 
 
 @tool()
 async def gmail_search_messages(
-    ctx,
+    ctx: Context,
     query: str,
     max_results: int = 20,
     page_token: Optional[str] = None,
@@ -142,22 +200,26 @@ async def gmail_search_messages(
     Returns:
         JSON with matching messages and pagination info
     """
-    params = {"q": query, "max": str(max_results)}
+    params = [f"q={query}", f"maxResults={max_results}"]
     if page_token:
-        params["pageToken"] = page_token
+        params.append(f"pageToken={page_token}")
+
+    path = f"/gmail/v1/users/me/messages?{'&'.join(params)}"
 
     response = await ctx.dispatch(
-        liam,
-        "GET",
-        f"{LIAM_API_BASE}/mcpGmailSearch",
-        params=params,
+        gmail,
+        HttpRequest(method=HttpMethod.GET, path=path)
     )
-    return response.text
+
+    if not response.success:
+        return json.dumps({"error": response.error.message})
+
+    return json.dumps(response.response.body) if response.response.body else "{}"
 
 
 @tool()
 async def gmail_list_threads(
-    ctx,
+    ctx: Context,
     max_results: int = 10,
     query: Optional[str] = None,
     page_token: Optional[str] = None,
@@ -175,23 +237,27 @@ async def gmail_list_threads(
     Returns:
         JSON with thread IDs, snippets, and pagination info
     """
-    params = {"max": str(max_results)}
+    params = [f"maxResults={max_results}"]
     if query:
-        params["q"] = query
+        params.append(f"q={query}")
     if page_token:
-        params["pageToken"] = page_token
+        params.append(f"pageToken={page_token}")
+
+    path = f"/gmail/v1/users/me/threads?{'&'.join(params)}"
 
     response = await ctx.dispatch(
-        liam,
-        "GET",
-        f"{LIAM_API_BASE}/mcpGmailListThreads",
-        params=params,
+        gmail,
+        HttpRequest(method=HttpMethod.GET, path=path)
     )
-    return response.text
+
+    if not response.success:
+        return json.dumps({"error": response.error.message})
+
+    return json.dumps(response.response.body) if response.response.body else "{}"
 
 
 @tool()
-async def gmail_get_thread(ctx, thread_id: str) -> str:
+async def gmail_get_thread(ctx: Context, thread_id: str) -> str:
     """
     Get a full email thread with all messages in the conversation.
 
@@ -201,17 +267,27 @@ async def gmail_get_thread(ctx, thread_id: str) -> str:
     Returns:
         Full thread with all messages in chronological order
     """
+    path = f"/gmail/v1/users/me/threads/{thread_id}?format=full"
+
     response = await ctx.dispatch(
-        liam,
-        "GET",
-        f"{LIAM_API_BASE}/mcpGmailGetThread",
-        params={"id": thread_id},
+        gmail,
+        HttpRequest(method=HttpMethod.GET, path=path)
     )
-    return response.text
+
+    if not response.success:
+        return json.dumps({"error": response.error.message})
+
+    if response.response.body:
+        thread = response.response.body
+        # Format each message in the thread
+        if "messages" in thread:
+            thread["messages"] = [format_message(msg) for msg in thread["messages"]]
+        return json.dumps(thread)
+    return "{}"
 
 
 @tool()
-async def gmail_list_labels(ctx) -> str:
+async def gmail_list_labels(ctx: Context) -> str:
     """
     List all Gmail labels in the user's account.
 
@@ -221,15 +297,18 @@ async def gmail_list_labels(ctx) -> str:
         JSON with list of labels including IDs, names, and types
     """
     response = await ctx.dispatch(
-        liam,
-        "GET",
-        f"{LIAM_API_BASE}/mcpGmailListLabels",
+        gmail,
+        HttpRequest(method=HttpMethod.GET, path="/gmail/v1/users/me/labels")
     )
-    return response.text
+
+    if not response.success:
+        return json.dumps({"error": response.error.message})
+
+    return json.dumps(response.response.body) if response.response.body else "{}"
 
 
 @tool()
-async def gmail_get_profile(ctx) -> str:
+async def gmail_get_profile(ctx: Context) -> str:
     """
     Get the connected Gmail account profile information.
 
@@ -237,16 +316,30 @@ async def gmail_get_profile(ctx) -> str:
         Account info including email address and total message/thread counts
     """
     response = await ctx.dispatch(
-        liam,
-        "GET",
-        f"{LIAM_API_BASE}/mcpGmailGetProfile",
+        gmail,
+        HttpRequest(method=HttpMethod.GET, path="/gmail/v1/users/me/profile")
     )
-    return response.text
+
+    if not response.success:
+        return json.dumps({"error": response.error.message})
+
+    return json.dumps(response.response.body) if response.response.body else "{}"
 
 
 # =============================================================================
 # Server Entry Point
 # =============================================================================
+
+
+def create_server() -> MCPServer:
+    """Create MCP server with Gmail connection."""
+    return MCPServer(
+        name="liam-gmail",
+        connections=[gmail],
+        http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+        streamable_http_stateless=True,
+    )
+
 
 def create_app():
     """Create and configure the MCP server for deployment."""
@@ -263,13 +356,16 @@ def create_app():
     return server
 
 
-# Export for Dedalus Labs marketplace deployment
+# Create server instance for Dedalus deployment
+# Dedalus will import this and call serve() or run() as needed
 server = create_app()
-app = server.asgi_app()
+app = server  # Alias for Dedalus entrypoint
 
 
 async def main() -> None:
     """Start MCP server locally."""
+    print("Starting LIAM Gmail MCP server...")
+    print("Server will be available at: http://127.0.0.1:8080/mcp")
     await server.serve(port=8080)
 
 
