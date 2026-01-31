@@ -1,7 +1,7 @@
 [project]
 name = "liam-gmail-mcp"
 version = "0.1.0"
-description = "LIAM Gmail MCP Server - Access Gmail via Google OAuth on Dedalus"
+description = "LIAM Gmail MCP Server - Access Gmail through LIAM's CASA-compliant OAuth"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
