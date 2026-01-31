@@ -27,7 +27,6 @@ from dedalus_mcp import (
     tool,
     Context,
     Connection,
-    SecretKeys,
     HttpMethod,
     HttpRequest,
 )
@@ -51,14 +50,9 @@ LIAM_AUTH_BASE = LIAM_API_BASE  # Same base, endpoints: /authorize, /callback, /
 # =============================================================================
 
 # Connection to LIAM backend
-# LIAM_ACCESS_TOKEN is a JWT issued by LIAM's /token endpoint
-# Dedalus should configure OAuth with:
-#   - Authorization URL: {LIAM_AUTH_BASE}/authorize
-#   - Token URL: {LIAM_AUTH_BASE}/token
-#   - Requires: client_secret (MCP_CLIENT_SECRET), account_type=mcp
+# TODO: Re-enable secrets once LIAM has /.well-known/jwks.json endpoint
 liam = Connection(
     name="liam",
-    secrets=SecretKeys(token="LIAM_ACCESS_TOKEN"),
     base_url=LIAM_API_BASE,
 )
 
