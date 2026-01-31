@@ -281,7 +281,7 @@ async def gmail_get_profile(ctx: Context) -> str:
 def create_server() -> MCPServer:
     """Create MCP server with LIAM connection."""
     return MCPServer(
-        name="liam-gmail",
+        name="gmail-mcp",  # Must match deployment slug
         connections=[liam],
         http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         streamable_http_stateless=True,
