@@ -285,7 +285,7 @@ def create_server() -> MCPServer:
         connections=[liam],
         http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         streamable_http_stateless=True,
-        authorization_server=LIAM_AUTH_BASE,  # Use LIAM as authorization server
+        authorization_server=LIAM_AUTH_BASE,
     )
 
 
