@@ -15,8 +15,8 @@ from dedalus_mcp.auth import Connection, SecretKeys
 
 # Connection to LIAM backend
 # Token is provided via OAuth flow (LIAM issues JWT after Google auth)
-liam = Connection(
-    name="liam",
+gmail = Connection(
+    name="gmail-mcp",
     secrets=SecretKeys(token="access_token"),
     base_url="https://us-central1-liam1-dev.cloudfunctions.net",
     auth_header_format="Bearer {api_key}",
@@ -27,7 +27,7 @@ async def _req(method: HttpMethod, path: str) -> dict:
     """Make request to LIAM backend."""
     ctx = get_context()
     request = HttpRequest(method=method, path=path)
-    response = await ctx.dispatch("liam", request)
+    response = await ctx.dispatch("gmail-mcp", request)
 
     if response.success:
         return response.response.body or {}

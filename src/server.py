@@ -16,7 +16,7 @@ import os
 from dedalus_mcp import MCPServer
 from dedalus_mcp.server import TransportSecuritySettings
 
-from gmail import gmail_tools, liam
+from gmail import gmail_tools, gmail
 
 
 def create_server() -> MCPServer:
@@ -26,9 +26,10 @@ def create_server() -> MCPServer:
 
     server = MCPServer(
         name="gmail-mcp",
-        connections=[liam],
-        authorization_server=liam_url,
+        connections=[gmail],
         http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+        streamable_http_stateless=True,
+        authorization_server=liam_url,
     )
 
     return server
