@@ -40,7 +40,7 @@ DEDALUS_API_URL = get_env("DEDALUS_API_URL", "https://api.dedaluslabs.ai")
 LIAM_API_URL = get_env("LIAM_API_URL", "https://us-central1-liam1-dev.cloudfunctions.net")
 
 # MCP server slug (after deployment to Dedalus)
-MCP_SERVER = get_env("MCP_SERVER", "sintem/gmail-mcp")
+MCP_SERVER = "sintem/gmail-mcp"
 
 print("=== Environment ===")
 print(f"  DEDALUS_API_URL: {DEDALUS_API_URL}")
