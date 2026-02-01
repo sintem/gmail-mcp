@@ -14,6 +14,7 @@ from urllib.parse import urlencode
 
 from dedalus_mcp import MCPServer, tool, HttpMethod, HttpRequest, get_context
 from dedalus_mcp.auth import Connection, SecretKeys
+from dedalus_mcp.server import AuthorizationConfig, TransportSecuritySettings
 from pydantic import Field
 
 
@@ -22,6 +23,7 @@ LIAM_API_BASE = "https://us-central1-liam1-dev.cloudfunctions.net"
 
 
 # Connection to LIAM backend - handles auth automatically
+# "token" will be populated from Credential(connection_name="liam", values={"token": ...})
 liam = Connection(
     name="liam",
     secrets=SecretKeys(token="LIAM_ACCESS_TOKEN"),
@@ -49,7 +51,7 @@ async def call_liam_api(endpoint: str, params: dict = None) -> dict:
     raise Exception(error_msg)
 
 
-# Gmail Tools - NO secrets parameter, use get_context() instead
+# Gmail Tools
 
 @tool(description="Get your Gmail profile information including email address and message counts")
 async def gmail_get_profile() -> dict:
@@ -122,10 +124,13 @@ async def gmail_search(
     })
 
 
-# Create MCP Server with LIAM connection
+# Create MCP Server - OAuth disabled at MCP level
+# (tokens are passed via Credential mechanism, not OAuth redirect flow)
 server = MCPServer(
     name="gmail-mcp",
     connections=[liam],
+    http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+    authorization=AuthorizationConfig(enabled=False),
 )
 
 # Register all tools
