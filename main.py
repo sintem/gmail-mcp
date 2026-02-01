@@ -11,37 +11,12 @@ Deployed on Dedalus marketplace as: sintem/gmail-mcp
 """
 
 import httpx
-from dedalus_mcp import MCPServer, tool, Connection, SecretKeys
-from pydantic import BaseModel, Field
-from typing import Optional
+from dedalus_mcp import MCPServer, tool, SecretKeys
+from pydantic import Field
 
 
 # LIAM Backend Configuration
 LIAM_API_BASE = "https://us-central1-liam1-dev.cloudfunctions.net"
-
-# OAuth Configuration - Points to LIAM as authorization server
-# Dedalus will fetch /.well-known/oauth-authorization-server from this URL
-connection = Connection(
-    authorization_server=LIAM_API_BASE,
-)
-
-
-# Response Models
-class EmailMessage(BaseModel):
-    id: str
-    threadId: str
-    snippet: Optional[str] = None
-    subject: Optional[str] = None
-    from_address: Optional[str] = Field(None, alias="from")
-    to: Optional[str] = None
-    date: Optional[str] = None
-    labels: Optional[list[str]] = None
-
-
-class GmailProfile(BaseModel):
-    emailAddress: str
-    messagesTotal: Optional[int] = None
-    threadsTotal: Optional[int] = None
 
 
 # Helper to call LIAM backend with user's JWT
@@ -137,10 +112,10 @@ async def gmail_search(
     })
 
 
-# Create MCP Server
+# Create MCP Server with LIAM as OAuth authorization server
 server = MCPServer(
     "gmail-mcp",
-    connection=connection,
+    authorization_server=LIAM_API_BASE,
 )
 
 # Register all tools
