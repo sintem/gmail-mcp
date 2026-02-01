@@ -1,33 +1,38 @@
-# LIAM Gmail
+# LIAM Gmail MCP
 
-Secure Gmail access powered by CASA-compliant OAuth. Search emails, read messages, browse threads, and list labels—all through LIAM's enterprise-grade infrastructure.
+Secure Gmail access powered by LIAM's CASA-compliant OAuth infrastructure. Search emails, read messages, browse threads, and list labels—all through LIAM's enterprise-grade backend.
 
-## Overview
+**Deployed on Dedalus**: `sintem/gmail-mcp`
 
-This MCP server provides Gmail access through LIAM's CASA-compliant Google OAuth infrastructure. Users authenticate via LIAM, and all Gmail API calls are routed through LIAM's backend to preserve security and compliance.
+## Architecture
 
-**Account Type**: Creates lightweight "mcp" accounts that provide direct API access without Gmail watch notifications or automatic draft generation.
+```
+User → LIAM Web App → Authenticate → Get JWT
+                                        ↓
+run.py → Credential(token=JWT) → Dedalus → MCP Server → LIAM Backend → Gmail API
+```
+
+- Users authenticate via LIAM (doitliam.com)
+- MCP server receives JWT tokens via Dedalus Credential mechanism
+- All Gmail API calls go through LIAM backend (RS256 JWT verification)
+- OAuth is handled by LIAM, not at the MCP level
 
 ## Tools
 
-### Messages
+### Profile
+- `gmail_get_profile` - Get Gmail profile (email address, message counts)
 
-- `gmail_list_messages` - List messages with search queries
-- `gmail_get_message` - Get a specific message by ID
-- `gmail_search_messages` - Search using Gmail query syntax
+### Messages
+- `gmail_list_messages` - List emails with optional search query
+- `gmail_get_message` - Get full content of a specific email by ID
+- `gmail_search` - Search emails using Gmail query syntax
 
 ### Threads
-
-- `gmail_list_threads` - List email threads (conversations)
-- `gmail_get_thread` - Get a thread with all messages
+- `gmail_list_threads` - List email threads/conversations
+- `gmail_get_thread` - Get full thread with all messages
 
 ### Labels
-
-- `gmail_list_labels` - List all labels
-
-### Profile
-
-- `gmail_get_profile` - Get user's Gmail profile
+- `gmail_list_labels` - List all Gmail labels (folders/categories)
 
 ## Gmail Query Syntax
 
@@ -52,29 +57,115 @@ Combine queries: `from:boss@company.com is:unread has:attachment`
 
 ### Prerequisites
 
-- Dedalus API key
 - Python 3.10+
+- Dedalus API key (from dedaluslabs.ai)
+- LIAM access token (JWT from doitliam.com)
 
 ### Environment Variables
 
-```
+Create `.env` file:
+
+```bash
+# Required for Dedalus API
 DEDALUS_API_KEY=dsk-live-your-key-here
-DEDALUS_API_URL=https://api.dedaluslabs.ai
-DEDALUS_AS_URL=https://as.dedaluslabs.ai
+
+# Required for LIAM authentication
+# Get from LIAM web app: DevTools > Application > Local Storage > accessToken
+LIAM_ACCESS_TOKEN=eyJhbGciOiJSUzI1NiIs...
+
+# Optional: MCP server name (defaults to sintem/gmail-mcp)
+MCP_SERVER=sintem/gmail-mcp
 ```
 
-### Local Development
+### Running Locally
 
 ```bash
 cd gmail-liam-mcp
 uv sync
-uv run python main.py
+python run.py
+```
+
+Example session:
+```
+Gmail MCP Agent (type 'quit' to exit)
+MCP Server: sintem/gmail-mcp
+LIAM Token: eyJhbGciOiJSUzI1Ni...
+
+You: Show me my unread emails
+Agent: You have 3 unread emails...
+
+You: quit
+```
+
+### Deploying to Dedalus
+
+```bash
+dedalus deploy
+```
+
+## Project Structure
+
+```
+gmail-liam-mcp/
+├── main.py          # MCP server (tools + LIAM connection)
+├── run.py           # Test runner with Dedalus SDK
+├── pyproject.toml   # Dependencies
+├── .env             # Environment variables (not committed)
+└── README.md
+```
+
+## Key Implementation Details
+
+### Connection Setup (main.py)
+
+```python
+from dedalus_mcp import MCPServer, tool, HttpMethod, HttpRequest, get_context
+from dedalus_mcp.auth import Connection, SecretKeys
+from dedalus_mcp.server import AuthorizationConfig, TransportSecuritySettings
+
+# Connection to LIAM backend
+liam = Connection(
+    name="liam",
+    secrets=SecretKeys(token="LIAM_ACCESS_TOKEN"),
+    base_url="https://us-central1-liam1-dev.cloudfunctions.net",
+    auth_header_format="Bearer {api_key}",
+)
+
+# MCP Server with OAuth disabled (tokens passed via Credential)
+server = MCPServer(
+    name="gmail-mcp",
+    connections=[liam],
+    http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+    authorization=AuthorizationConfig(enabled=False),
+)
+```
+
+### Credential Passing (run.py)
+
+```python
+from dedalus_labs.types import Credential
+
+credentials = [
+    Credential(
+        connection_name="liam",  # Matches Connection(name="liam")
+        values={"token": liam_token}  # Matches SecretKeys(token=...)
+    )
+]
+
+response = await runner.run(
+    input=prompt,
+    mcp_servers=["sintem/gmail-mcp"],
+    credentials=credentials,
+)
 ```
 
 ## Security
-- Google credentials are encrypted at rest (AES-256-GCM)
-- OAuth tokens never touch the MCP server directly
-- Your credentials are never exposed to third parties
+
+- LIAM issues RS256 JWTs (asymmetric signing)
+- JWKS endpoint available at `/.well-known/jwks.json` for token verification
+- Google credentials encrypted at rest (AES-256-GCM)
+- OAuth tokens never touch MCP server directly
+- All API calls authenticated via LIAM backend
 
 ## Support
 
