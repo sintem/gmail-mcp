@@ -5,14 +5,12 @@
 LIAM Gmail MCP Server
 
 Provides Gmail access through LIAM's CASA-compliant OAuth infrastructure.
-Users authenticate via LIAM OAuth (Google), and all Gmail API calls go through LIAM backend.
+All Gmail API calls go through LIAM backend.
 
-OAuth Flow:
-1. User connects to MCP via Dedalus
-2. Dedalus discovers LIAM OAuth via /.well-known/oauth-authorization-server
-3. User is redirected to LIAM → Google OAuth
-4. After auth, user is redirected back with JWT
-5. MCP uses JWT to call LIAM backend APIs
+Token Flow:
+1. User authenticates with LIAM (web app or OAuth)
+2. User passes LIAM JWT via Credential to MCP
+3. MCP uses JWT to call LIAM backend → Gmail API
 
 Deployed on Dedalus marketplace as: sintem/gmail-mcp
 """
@@ -21,7 +19,7 @@ import os
 
 from dedalus_mcp import MCPServer, tool, HttpMethod, HttpRequest, get_context
 from dedalus_mcp.auth import Connection, SecretKeys
-from dedalus_mcp.server import TransportSecuritySettings
+from dedalus_mcp.server import AuthorizationConfig, TransportSecuritySettings
 from pydantic import Field
 
 
@@ -121,13 +119,13 @@ gmail_tools = [
 ]
 
 
-# Create MCP Server with LIAM as OAuth Authorization Server
-# Dedalus will discover OAuth endpoints via LIAM's /.well-known/oauth-authorization-server
+# Create MCP Server
+# OAuth disabled at MCP level - tokens passed via Credential mechanism
 server = MCPServer(
     name="gmail-mcp",
     connections=[liam],
-    authorization_server=LIAM_API_BASE,  # Points to LIAM for OAuth
     http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+    authorization=AuthorizationConfig(enabled=False),
 )
 
 # Register all tools
