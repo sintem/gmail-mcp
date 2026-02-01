@@ -22,7 +22,8 @@ from src.gmail import gmail_tools, gmail
 def create_server() -> MCPServer:
     """Create the MCP server with LIAM as authorization server."""
     # LIAM backend URL - also serves as OAuth authorization server
-    liam_url = os.getenv("LIAM_API_URL", "https://us-central1-liam1-dev.cloudfunctions.net")
+    # Use Cloudflare Worker domain which has .well-known path routing
+    liam_url = os.getenv("LIAM_API_URL", "https://api-dev.doitliam.com")
 
     server = MCPServer(
         name="gmail-mcp",

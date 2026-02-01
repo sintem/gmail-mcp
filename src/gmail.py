@@ -7,18 +7,23 @@ All Gmail API calls go through LIAM backend which holds the Google OAuth tokens.
 The MCP server receives a LIAM JWT via OAuth flow.
 """
 
+import os
+
 from pydantic import Field
 
 from dedalus_mcp import HttpMethod, HttpRequest, get_context, tool
 from dedalus_mcp.auth import Connection, SecretKeys
 
 
+# LIAM backend URL (via Cloudflare Worker for .well-known routing)
+LIAM_API_URL = os.getenv("LIAM_API_URL", "https://api-dev.doitliam.com")
+
 # Connection to LIAM backend
 # Token is provided via OAuth flow (LIAM issues JWT after Google auth)
 gmail = Connection(
     name="gmail-mcp",
     secrets=SecretKeys(token="access_token"),
-    base_url="https://us-central1-liam1-dev.cloudfunctions.net",
+    base_url=LIAM_API_URL,
     auth_header_format="Bearer {api_key}",
 )
 

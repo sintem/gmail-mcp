@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "LIAM Team", email = "support@doitliam.com"}
+    {name = "LIAM Team", email = "hello@doitliam.com"}
 ]
 keywords = ["mcp", "gmail", "email", "ai-assistant", "liam", "dedalus"]
 
@@ -24,6 +24,10 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "ruff>=0.1.0",
 ]
+
+[project.urls]
+Homepage = "https://doitliam.com"
+Repository = "https://github.com/sintem/gmail-mcp"
 
 [build-system]
 requires = ["hatchling"]

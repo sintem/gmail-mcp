@@ -54,7 +54,7 @@ DEDALUS_API_KEY=dsk-live-your-key
 
 # Optional (defaults shown)
 DEDALUS_API_URL=https://api.dedaluslabs.ai
-LIAM_API_URL=https://us-central1-liam1-dev.cloudfunctions.net
+LIAM_API_URL=https://api-dev.doitliam.com
 MCP_SERVER=sintem/gmail-mcp
 ```
 
