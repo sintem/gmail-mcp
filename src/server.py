@@ -3,35 +3,33 @@
 
 """LIAM Gmail MCP Server.
 
-OAuth Flow:
-1. User connects to MCP
-2. Dedalus discovers LIAM OAuth via /.well-known/oauth-authorization-server
-3. User is redirected to LIAM → Google OAuth
-4. After auth, LIAM issues JWT
-5. MCP uses JWT to call LIAM backend → Gmail API
+OAuth Flow (handled by Dedalus):
+1. User connects to MCP via Dedalus
+2. Dedalus shows OAuth popup → LIAM → Google
+3. After auth, Dedalus passes token to MCP
+4. MCP uses token to call LIAM backend → Gmail API
 """
 
-import os
-
 from dedalus_mcp import MCPServer
-from dedalus_mcp.server import TransportSecuritySettings
+from dedalus_mcp.server import AuthorizationConfig, TransportSecuritySettings
 
 from gmail import gmail_tools, gmail
 from smoke import smoke_tools
 
 
 def create_server() -> MCPServer:
-    """Create the MCP server with LIAM as authorization server."""
-    # LIAM backend URL - also serves as OAuth authorization server
-    # Use Cloudflare Worker domain which has .well-known path routing
-    liam_url = os.getenv("LIAM_API_URL", "https://api-dev.doitliam.com")
+    """Create the MCP server.
 
+    OAuth is handled by Dedalus platform via popup flow.
+    Server doesn't enforce auth - Dedalus injects tokens after OAuth.
+    """
     server = MCPServer(
         name="gmail-mcp",
         connections=[gmail],
         http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         streamable_http_stateless=True,
-        authorization_server=liam_url,
+        # Disable server-side auth - Dedalus handles OAuth via popup
+        authorization=AuthorizationConfig(enabled=False),
     )
 
     return server
