@@ -16,7 +16,7 @@ import os
 from dedalus_mcp import MCPServer
 from dedalus_mcp.server import TransportSecuritySettings
 
-from gmail import gmail_tools, gmail
+from src.gmail import gmail_tools, gmail
 
 
 def create_server() -> MCPServer:
@@ -36,7 +36,15 @@ def create_server() -> MCPServer:
 
 
 async def main() -> None:
-    """Start the MCP server."""
+    """Start the MCP server locally."""
     server = create_server()
     server.collect(*gmail_tools)
     await server.serve(port=8080)
+
+
+# Create and configure server for Dedalus deployment
+server = create_server()
+server.collect(*gmail_tools)
+
+# Export for Dedalus deployment
+app = server

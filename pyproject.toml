@@ -40,4 +40,4 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 asyncio_mode = "auto"
 
 [tool.dedalus]
-entrypoint = "main:app"
+entrypoint = "src.server:app"
