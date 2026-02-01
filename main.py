@@ -19,7 +19,7 @@ import os
 
 from dedalus_mcp import MCPServer, tool, HttpMethod, HttpRequest, get_context
 from dedalus_mcp.auth import Connection, SecretKeys
-from dedalus_mcp.server import AuthorizationConfig, TransportSecuritySettings
+from dedalus_mcp.server import TransportSecuritySettings
 from pydantic import Field
 
 
@@ -119,13 +119,12 @@ gmail_tools = [
 ]
 
 
-# Create MCP Server
-# OAuth disabled at MCP level - tokens passed via Credential mechanism
+# Create MCP Server with LIAM as OAuth Authorization Server
 server = MCPServer(
     name="gmail-mcp",
     connections=[liam],
     http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
-    authorization=AuthorizationConfig(enabled=False),
+    authorization_server=LIAM_API_BASE,
 )
 
 # Register all tools
