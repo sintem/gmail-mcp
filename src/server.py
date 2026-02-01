@@ -16,7 +16,8 @@ import os
 from dedalus_mcp import MCPServer
 from dedalus_mcp.server import TransportSecuritySettings
 
-from src.gmail import gmail_tools, gmail
+from gmail import gmail_tools, gmail
+from smoke import smoke_tools
 
 
 def create_server() -> MCPServer:
@@ -45,7 +46,7 @@ async def main() -> None:
 
 # Create and configure server for Dedalus deployment
 server = create_server()
-server.collect(*gmail_tools)
+server.collect(*smoke_tools, *gmail_tools)
 
 # Export for Dedalus deployment
 app = server
