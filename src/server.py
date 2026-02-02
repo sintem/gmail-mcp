@@ -18,15 +18,15 @@ from smoke import smoke_tools
 
 def create_server() -> MCPServer:
     """Create MCP server with LIAM as authorization server."""
-    # LIAM backend URL - serves OAuth endpoints via Cloudflare Worker
-    liam_url = os.getenv("LIAM_API_URL", "https://api-dev.doitliam.com")
+    # Use Dedalus AS for OAuth (testing if gmail connection causes 401)
+    as_url = os.getenv("DEDALUS_AS_URL", "https://as.dedaluslabs.ai")
 
     server = MCPServer(
         name="gmail-mcp",
         connections=[gmail],
         http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         streamable_http_stateless=True,
-        authorization_server=liam_url,
+        authorization_server=as_url,
     )
 
     # Collect all tools
