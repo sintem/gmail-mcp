@@ -22,7 +22,7 @@ LIAM_API_URL = os.getenv("LIAM_API_URL", "https://api-dev.doitliam.com")
 # Token is provided via OAuth flow (LIAM issues JWT after Google auth)
 gmail = Connection(
     name="gmail-mcp",
-    secrets=SecretKeys(token="access_token"),
+    secrets=SecretKeys(token="GMAIL_ACCESS_TOKEN"),
     base_url=LIAM_API_URL,
     auth_header_format="Bearer {api_key}",
 )
