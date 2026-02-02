@@ -3,12 +3,8 @@
 
 """LIAM Gmail MCP Server.
 
-OAuth Flow:
-1. User connects to MCP
-2. Dedalus discovers LIAM OAuth via /.well-known/oauth-authorization-server
-3. User is redirected to LIAM → Google OAuth
-4. After auth, LIAM issues JWT
-5. MCP uses JWT to call LIAM backend → Gmail API
+Exposes Gmail tools via Dedalus MCP framework.
+OAuth handled by LIAM backend which proxies to Google OAuth.
 """
 
 import os
@@ -16,37 +12,40 @@ import os
 from dedalus_mcp import MCPServer
 from dedalus_mcp.server import TransportSecuritySettings
 
-from gmail import gmail_tools, gmail
+from gmail import gmail, gmail_tools
 from smoke import smoke_tools
 
 
 def create_server() -> MCPServer:
-    """Create the MCP server with LIAM as authorization server."""
-    # LIAM backend URL - also serves as OAuth authorization server
-    # Use Cloudflare Worker domain which has .well-known path routing
-    liam_url = os.getenv("LIAM_API_URL", "https://api-dev.doitliam.com")
+    """Create MCP server with LIAM as authorization server."""
+    # LIAM serves OAuth endpoints via Cloudflare Worker at api-dev.doitliam.com
+    # - /.well-known/oauth-authorization-server → OAuth metadata
+    # - /.well-known/jwks.json → JWKS for token verification
+    # - /authorize → Authorization endpoint
+    # - /token → Token endpoint
+    # Use LIAM or Dedalus AS based on environment
+    # For testing, DEDALUS_AS_URL can be set to use standard Dedalus auth
+    auth_server = os.getenv("DEDALUS_AS_URL", os.getenv("LIAM_API_URL", "https://api-dev.doitliam.com"))
 
-    server = MCPServer(
+    return MCPServer(
         name="gmail-mcp",
         connections=[gmail],
         http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         streamable_http_stateless=True,
-        authorization_server=liam_url,
+        authorization_server=auth_server,
     )
-
-    return server
 
 
 async def main() -> None:
-    """Start the MCP server locally."""
+    """Start MCP server locally."""
     server = create_server()
-    server.collect(*gmail_tools)
+    server.collect(*smoke_tools, *gmail_tools)
     await server.serve(port=8080)
 
 
 # Create and configure server for Dedalus deployment
 server = create_server()
-server.collect(*smoke_tools,*gmail_tools)
+server.collect(*smoke_tools, *gmail_tools)
 
 # Export for Dedalus deployment
 app = server
