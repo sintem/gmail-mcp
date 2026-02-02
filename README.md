@@ -54,7 +54,6 @@ DEDALUS_API_KEY=dsk-live-your-key
 
 # Optional (defaults shown)
 DEDALUS_API_URL=https://api.dedaluslabs.ai
-LIAM_API_URL=https://api-dev.doitliam.com
 ```
 
 ### 2. Install

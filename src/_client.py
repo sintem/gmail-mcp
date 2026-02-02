@@ -6,7 +6,6 @@
 Environment variables:
     DEDALUS_API_KEY: Your Dedalus API key (dsk-live-*)
     DEDALUS_API_URL: Dedalus Product API URL
-    LIAM_API_URL: LIAM backend URL (authorization server)
 """
 
 import asyncio
@@ -37,14 +36,13 @@ def get_env(key: str, default: str | None = None) -> str:
 # Configuration
 DEDALUS_API_KEY = get_env("DEDALUS_API_KEY")
 DEDALUS_API_URL = get_env("DEDALUS_API_URL", "https://api.dedaluslabs.ai")
-LIAM_API_URL = get_env("LIAM_API_URL", "https://us-central1-liam1-dev.cloudfunctions.net")
+DEDALUS_AS_URL = get_env("DEDALUS_AS_URL", "https://as.dedaluslabs.ai")
 
 # MCP server slug (after deployment to Dedalus)
 MCP_SERVER = "sintem/gmail-mcp"
 
 print("=== Environment ===")
 print(f"  DEDALUS_API_URL: {DEDALUS_API_URL}")
-print(f"  LIAM_API_URL: {LIAM_API_URL}")
 print(f"  MCP_SERVER: {MCP_SERVER}")
 print(f"  DEDALUS_API_KEY: {DEDALUS_API_KEY[:20]}...")
 
@@ -82,7 +80,7 @@ async def run_interactive() -> None:
     client = AsyncDedalus(
         api_key=DEDALUS_API_KEY,
         base_url=DEDALUS_API_URL,
-        as_base_url=LIAM_API_URL,  # LIAM is the authorization server
+        as_base_url=DEDALUS_AS_URL,  # Dedalus AS is the authorization server
     )
     runner = DedalusRunner(client)
 
@@ -129,7 +127,7 @@ async def run_single_query(query: str) -> None:
     client = AsyncDedalus(
         api_key=DEDALUS_API_KEY,
         base_url=DEDALUS_API_URL,
-        as_base_url=LIAM_API_URL,
+        as_base_url=DEDALUS_AS_URL,
     )
     runner = DedalusRunner(client)
 
