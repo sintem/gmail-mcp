@@ -4,10 +4,8 @@
 """MCP server entrypoint.
 
 Exposes Gmail tools via Dedalus MCP framework.
-OAuth handled by LIAM backend which proxies to Google OAuth.
+OAuth configured via Dedalus dashboard environment variables.
 """
-
-import os
 
 from dedalus_mcp import MCPServer
 from dedalus_mcp.server import TransportSecuritySettings
@@ -17,16 +15,12 @@ from smoke import smoke_tools
 
 
 def create_server() -> MCPServer:
-    """Create MCP server with LIAM as authorization server."""
-    # Use Dedalus AS for OAuth (testing if gmail connection causes 401)
-    as_url = os.getenv("DEDALUS_AS_URL", "https://as.dedaluslabs.ai")
-
+    """Create MCP server."""
     server = MCPServer(
         name="gmail-mcp",
         connections=[gmail],
         http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         streamable_http_stateless=True,
-        authorization_server=as_url,
     )
 
     # Collect all tools
