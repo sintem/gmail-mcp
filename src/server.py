@@ -21,7 +21,7 @@ def create_server() -> MCPServer:
     # LIAM backend URL - serves OAuth endpoints via Cloudflare Worker
     liam_url = os.getenv("LIAM_API_URL", "https://api-dev.doitliam.com")
 
-    return MCPServer(
+    server = MCPServer(
         name="gmail-mcp",
         connections=[gmail],
         http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
@@ -29,9 +29,13 @@ def create_server() -> MCPServer:
         authorization_server=liam_url,
     )
 
+    # Collect all tools
+    server.collect(*smoke_tools, *gmail_tools)
+
+    return server
+
 
 async def main() -> None:
     """Start MCP server."""
     server = create_server()
-    server.collect(*smoke_tools, *gmail_tools)
     await server.serve(port=8080)
