@@ -53,3 +53,5 @@ Thumbs.db
 
 # Local test client
 run.py
+
+local_secrets.md

@@ -1,11 +1,13 @@
 # Copyright (c) 2026 LIAM Team
 # SPDX-License-Identifier: MIT
 
-"""Local MCP client demonstrating OAuth browser flow with LIAM.
+"""Local MCP client demonstrating DAuth + LIAM OAuth browser flow.
 
 Environment variables:
     DEDALUS_API_KEY: Your Dedalus API key (dsk-live-*)
     DEDALUS_API_URL: Dedalus Product API URL
+    DEDALUS_AS_URL: Dedalus Authorization Server URL
+    MCP_SERVER: MCP server slug (defaults to LIAM-hosted slug)
 """
 
 import asyncio
@@ -39,10 +41,11 @@ DEDALUS_API_URL = get_env("DEDALUS_API_URL", "https://api.dedaluslabs.ai")
 DEDALUS_AS_URL = get_env("DEDALUS_AS_URL", "https://as.dedaluslabs.ai")
 
 # MCP server slug (after deployment to Dedalus)
-MCP_SERVER = "sintem/gmail-mcp"
+MCP_SERVER = os.getenv("MCP_SERVER", "sintem/gmail-mcp")
 
 print("=== Environment ===")
 print(f"  DEDALUS_API_URL: {DEDALUS_API_URL}")
+print(f"  DEDALUS_AS_URL: {DEDALUS_AS_URL}")
 print(f"  MCP_SERVER: {MCP_SERVER}")
 print(f"  DEDALUS_API_KEY: {DEDALUS_API_KEY[:20]}...")
 
@@ -85,7 +88,7 @@ async def run_interactive() -> None:
     runner = DedalusRunner(client)
 
     print("\n" + "=" * 60)
-    print("LIAM Gmail MCP Client")
+    print("LIAM Gmail MCP Client (doitliam.com)")
     print("Type your requests, or 'quit' to exit")
     print("=" * 60 + "\n")
 

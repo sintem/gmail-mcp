@@ -1,7 +1,7 @@
-# Copyright (c) 2026 Sintem, Inc. and its contributors
+# Copyright (c) 2026 LIAM Team
 # SPDX-License-Identifier: MIT
 
-"""Smoke test tools for gmail-mcp."""
+"""Smoke test tools for LIAM Gmail MCP (doitliam.com)."""
 
 from mcp.types import TextContent, Tool
 
@@ -11,7 +11,7 @@ from dedalus_mcp import tool
 
 
 @tool(
-    description="Smoke test tool that echoes input",
+    description="Smoke test tool that echoes input (LIAM Gmail MCP)",
     annotations=ToolAnnotations(readOnlyHint=True),
 )
 async def smoke_echo(message: str) -> list[TextContent]:
@@ -20,7 +20,7 @@ async def smoke_echo(message: str) -> list[TextContent]:
 
 
 @tool(
-    description="Smoke test tool that returns server info",
+    description="Smoke test tool that returns server info (LIAM Gmail MCP)",
     annotations=ToolAnnotations(readOnlyHint=True),
 )
 async def smoke_info() -> list[TextContent]:
@@ -28,7 +28,7 @@ async def smoke_info() -> list[TextContent]:
     return [
         TextContent(
             type="text",
-            text="gmail-mcp server v0.0.1 - Gmail MCP tools via Dedalus framework",
+            text="LIAM Gmail MCP server v0.0.1 - Provided by LIAM (doitliam.com)",
         )
     ]
 

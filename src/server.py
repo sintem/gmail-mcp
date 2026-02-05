@@ -3,12 +3,13 @@
 
 """MCP server entrypoint.
 
-Exposes Gmail tools via Dedalus MCP framework.
-OAuth configured via Dedalus dashboard environment variables.
+Exposes Gmail tools via Dedalus MCP framework. This server is provided by
+LIAM (doitliam.com) and uses Dedalus DAuth + LIAM OAuth for Gmail access.
 """
 
+import os
+
 from dedalus_mcp import MCPServer
-from dedalus_mcp.server import TransportSecuritySettings
 
 from gmail import gmail, gmail_tools
 from smoke import smoke_tools
@@ -16,10 +17,13 @@ from smoke import smoke_tools
 
 def create_server() -> MCPServer:
     """Create MCP server."""
+    dedalus_as_url = os.getenv("DEDALUS_AS_URL", "https://as.dedaluslabs.ai")
     server = MCPServer(
         name="gmail-mcp",
+        instructions="Gmail MCP provided by LIAM (doitliam.com).",
+        website_url="https://doitliam.com",
         connections=[gmail],
-        http_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+        authorization_server=dedalus_as_url,
         streamable_http_stateless=True,
     )
 

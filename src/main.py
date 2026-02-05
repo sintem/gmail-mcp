@@ -1,7 +1,7 @@
 # Copyright (c) 2026 LIAM Team
 # SPDX-License-Identifier: MIT
 
-"""Entrypoint for LIAM Gmail MCP Server."""
+"""Entrypoint for LIAM Gmail MCP Server (doitliam.com)."""
 
 import asyncio
 

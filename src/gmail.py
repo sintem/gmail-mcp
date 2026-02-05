@@ -1,14 +1,16 @@
 # Copyright (c) 2026 LIAM Team
 # SPDX-License-Identifier: MIT
 
-"""Gmail tools using LIAM backend.
+"""Gmail tools using LIAM OAuth (doitliam.com).
 
-All Gmail API calls go through LIAM backend which holds the Google OAuth tokens.
-The MCP server receives a LIAM JWT via OAuth flow.
+This MCP server is provided by LIAM and uses Dedalus DAuth + LIAM OAuth to access
+the Gmail API on behalf of the user.
 """
 
 import base64
 import json
+import os
+from urllib.parse import urlencode
 from email.mime.text import MIMEText
 from typing import Any
 
@@ -20,15 +22,14 @@ from dedalus_mcp import HttpMethod, HttpRequest, get_context, tool
 from dedalus_mcp.auth import Connection, SecretKeys
 
 
-# LIAM backend URL (via Cloudflare Worker for .well-known routing)
-# LIAM_API_URL = os.getenv("LIAM_API_URL", "https://api-dev.doitliam.com")
+# Gmail API base URL (override if needed)
+GMAIL_API_URL = os.getenv("GMAIL_API_URL", "https://gmail.googleapis.com")
 
-# Connection to LIAM backend
-# Token is provided via OAuth flow (LIAM issues JWT after Google auth)
+# Connection to Gmail API (token is provided via DAuth or LIAM OAuth)
 gmail = Connection(
     name="gmail-mcp",
-    secrets=SecretKeys(token="GMAIL_ACCESS_TOKEN"),
-    # base_url=LIAM_API_URL,
+    secrets=SecretKeys(api_key="LIAM_ACCESS_TOKEN"),
+    base_url=GMAIL_API_URL,
     auth_header_format="Bearer {api_key}",
 )
 
@@ -45,6 +46,12 @@ async def _req(method: HttpMethod, path: str, body: dict | None = None) -> Gmail
         return [TextContent(type="text", text=json.dumps(data, indent=2))]
     error = resp.error.message if resp.error else "Request failed"
     return [TextContent(type="text", text=json.dumps({"error": error}, indent=2))]
+
+
+def _build_query(params: list[tuple[str, object]]) -> str:
+    """Build a URL-encoded query string from key/value pairs."""
+    filtered = [(k, v) for k, v in params if v not in ("", None)]
+    return urlencode(filtered, doseq=True)
 
 
 def _create_message(to: str, subject: str, body: str, cc: str = "", bcc: str = "") -> str:
@@ -75,18 +82,21 @@ async def gmail_list_messages(
     max_results: int = 10,
     label_ids: str = "",
     include_spam_trash: bool = False,
+    page_token: str = "",
 ) -> GmailResult:
     """List messages with optional filtering."""
-    params = [f"maxResults={max_results}"]
+    params: list[tuple[str, object]] = [("maxResults", max_results)]
     if query:
-        params.append(f"q={query}")
+        params.append(("q", query))
     if label_ids:
         for label in label_ids.split(","):
-            params.append(f"labelIds={label.strip()}")
+            params.append(("labelIds", label.strip()))
     if include_spam_trash:
-        params.append("includeSpamTrash=true")
+        params.append(("includeSpamTrash", "true"))
+    if page_token:
+        params.append(("pageToken", page_token))
 
-    query_string = "&".join(params)
+    query_string = _build_query(params)
     return await _req(HttpMethod.GET, f"/gmail/v1/users/me/messages?{query_string}")
 
 
@@ -173,16 +183,22 @@ async def gmail_list_threads(
     query: str = "",
     max_results: int = 10,
     label_ids: str = "",
+    include_spam_trash: bool = False,
+    page_token: str = "",
 ) -> GmailResult:
     """List threads with optional filtering."""
-    params = [f"maxResults={max_results}"]
+    params: list[tuple[str, object]] = [("maxResults", max_results)]
     if query:
-        params.append(f"q={query}")
+        params.append(("q", query))
     if label_ids:
         for label in label_ids.split(","):
-            params.append(f"labelIds={label.strip()}")
+            params.append(("labelIds", label.strip()))
+    if include_spam_trash:
+        params.append(("includeSpamTrash", "true"))
+    if page_token:
+        params.append(("pageToken", page_token))
 
-    query_string = "&".join(params)
+    query_string = _build_query(params)
     return await _req(HttpMethod.GET, f"/gmail/v1/users/me/threads?{query_string}")
 
 
@@ -207,6 +223,35 @@ async def gmail_get_thread(
 async def gmail_trash_thread(thread_id: str) -> GmailResult:
     """Move a thread to trash."""
     return await _req(HttpMethod.POST, f"/gmail/v1/users/me/threads/{thread_id}/trash")
+
+
+@tool(
+    description="Remove a thread from trash.",
+    tags=["thread", "write"],
+    annotations=ToolAnnotations(readOnlyHint=False),
+)
+async def gmail_untrash_thread(thread_id: str) -> GmailResult:
+    """Remove a thread from trash."""
+    return await _req(HttpMethod.POST, f"/gmail/v1/users/me/threads/{thread_id}/untrash")
+
+
+@tool(
+    description="Modify labels on a thread. Adds/removes labels for all messages in the thread.",
+    tags=["thread", "write"],
+    annotations=ToolAnnotations(readOnlyHint=False),
+)
+async def gmail_modify_thread(
+    thread_id: str,
+    add_label_ids: str = "",
+    remove_label_ids: str = "",
+) -> GmailResult:
+    """Modify labels on a thread."""
+    body: dict[str, Any] = {}
+    if add_label_ids:
+        body["addLabelIds"] = [l.strip() for l in add_label_ids.split(",")]
+    if remove_label_ids:
+        body["removeLabelIds"] = [l.strip() for l in remove_label_ids.split(",")]
+    return await _req(HttpMethod.POST, f"/gmail/v1/users/me/threads/{thread_id}/modify", body)
 
 
 # -----------------------------------------------------------------------------
@@ -273,9 +318,22 @@ async def gmail_delete_label(label_id: str) -> GmailResult:
     tags=["draft", "read"],
     annotations=ToolAnnotations(readOnlyHint=True),
 )
-async def gmail_list_drafts(max_results: int = 10) -> GmailResult:
+async def gmail_list_drafts(
+    max_results: int = 10,
+    query: str = "",
+    include_spam_trash: bool = False,
+    page_token: str = "",
+) -> GmailResult:
     """List drafts."""
-    return await _req(HttpMethod.GET, f"/gmail/v1/users/me/drafts?maxResults={max_results}")
+    params: list[tuple[str, object]] = [("maxResults", max_results)]
+    if query:
+        params.append(("q", query))
+    if include_spam_trash:
+        params.append(("includeSpamTrash", "true"))
+    if page_token:
+        params.append(("pageToken", page_token))
+    query_string = _build_query(params)
+    return await _req(HttpMethod.GET, f"/gmail/v1/users/me/drafts?{query_string}")
 
 
 @tool(
@@ -341,6 +399,23 @@ async def gmail_get_profile() -> GmailResult:
 
 
 # -----------------------------------------------------------------------------
+# Attachment Tools
+# -----------------------------------------------------------------------------
+
+
+@tool(
+    description="Get a specific message attachment by attachment ID.",
+    tags=["attachment", "read"],
+    annotations=ToolAnnotations(readOnlyHint=True),
+)
+async def gmail_get_attachment(message_id: str, attachment_id: str) -> GmailResult:
+    """Get a message attachment."""
+    return await _req(
+        HttpMethod.GET, f"/gmail/v1/users/me/messages/{message_id}/attachments/{attachment_id}"
+    )
+
+
+# -----------------------------------------------------------------------------
 # Export
 # -----------------------------------------------------------------------------
 
@@ -356,6 +431,8 @@ gmail_tools: list[Tool] = [
     gmail_list_threads,
     gmail_get_thread,
     gmail_trash_thread,
+    gmail_untrash_thread,
+    gmail_modify_thread,
     # Labels
     gmail_list_labels,
     gmail_get_label,
@@ -369,4 +446,6 @@ gmail_tools: list[Tool] = [
     gmail_delete_draft,
     # Profile
     gmail_get_profile,
+    # Attachments
+    gmail_get_attachment,
 ]
